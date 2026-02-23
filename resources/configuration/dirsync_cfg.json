@@ -1,0 +1,40 @@
+{
+    "syncprofiles": {
+        "musicbak-local": {
+            "s3config": {
+                "sessionconfig": {
+                    "region": "us-west-2",
+                    "endpoint": "http://localstack.testlab.local",
+                    "s3usepathstyle": true
+                },
+                "bucket": "beardfamily-music-dev",
+                "s3storageclass": "standard_ia"
+            },
+            "filecopyoptions": {
+                "throttlebucketsizekb": 2048,
+                "throttle": false,
+                "maxconcurrentcopies": 1
+            },
+            "source": "/shares/bak/picolo key/HGA",
+            "ext": ["vbproj", "xls"],
+            "exclusions": ["user"],
+            "recursive": true
+        },
+        "musicbak-prod": {
+            "s3config": {
+                "sessionconfig": {
+                    "region": "us-west-2"
+                },
+                "bucket": "beardfamily-musicbak",
+                "s3storageclass": "standard_ia"
+            },
+            "source": "C:\\bak\\beardfamily-musicbak",
+            "ext": ["vb","xls"],
+            "exclusions": ["user"],
+            "recursive": true
+        }
+    },
+    "executionflags": {
+        "overwrite": false
+    }
+}

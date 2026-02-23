@@ -1,0 +1,63 @@
+{
+    "awsparams": {
+        "sessionconfig": {
+            "region": "us-west-2",
+            "endpoint": "http://localstack.testlab.local",
+            "s3usepathstyle": true
+        },
+        "s3bucket": "beardfamily-music-dev",
+        "s3storageclass": "standard_ia"
+    },
+    "filecopyoptions": {
+        "throttlebucketsizekb": 2048,
+        "throttle": false,
+        "maxconcurrentcopies": 1
+    },
+    "serviceconfig" : {
+        "Name": "dirsynctos3",
+	    "DisplayName": "Directory Synchronization to AWS S3",
+	    "Description": "Directory Synchronization to AWS S3",
+	    "UserName": "",
+	    "Arguments": [],
+	    "Executable": "",
+	    "Dependencies": [],
+	    "WorkingDirectory": "",
+	    "ChRoot": ""
+    },
+    "scheduledef": "0 1 * * *",
+    "runatstartup": false,
+    "executionflags": {
+        "overwrite": false
+    },
+    "apiconfig": {
+        "port":     8080,
+		"protocol": "tcp",
+		"certpath": "",
+		"keypath":  "",
+		"secure": false
+    },
+    "searchfolder": "/development/data/files",
+    "searchext": ["vb","xls"],
+    "searchexclusions": [],
+    "recursivesearch": true
+}
+
+{
+    "syncprofiles": {
+        "musicbak-wav": {
+            "s3config": {
+                "sessionconfig": {
+                    "region": "us-west-2",
+                    "endpoint": "http://localstack.testlab.local",
+                    "s3usepathstyle": true
+                },
+                "s3bucket": "beardfamily-music-dev",
+                "s3storageclass": "standard_ia"
+            },
+            "source": "/development/data/files"
+        }
+    },
+    "executionflags": {
+        "overwrite": false
+    }
+}

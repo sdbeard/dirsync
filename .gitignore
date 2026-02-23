@@ -1,0 +1,14 @@
+#-- VSCODE -----
+.vscode
+
+#-- Go ---------
+go.work*
+vendor
+*.code-workspace
+
+#-- Build ------
+dirsynctos3*
+.environ
+search.dat
+errors.dat
+*.log

@@ -1,0 +1,56 @@
+---
+syncprofiles:
+  musicbak-local:
+    name: musicbak-local
+    description: musicbak-local
+    s3config:
+      connect:
+        region: us-west-2
+        endpoint: http://localstack.testlab.local
+        s3usepathstyle: true
+      bucket: beardfamily-music-dev
+      s3storageclass: standard_ia
+    filecopyoptions:
+      throttlebucketsizekb: 2048
+      throttle: false
+      maxconcurrentcopies: 1
+    source: "/development/data/files"
+    ext:
+    - txt
+    - vb
+    exclusions:
+    - user
+    scheduledef: 0 1 * * *
+    runatstartup: false
+    recursive: true
+  musicbak-prod:
+    name: musicbak-prod
+    description: musicbak-prod
+    s3config:
+      connect:
+        region: us-west-2
+      bucket: beardfamily-musicbak
+      s3storageclass: standard_ia
+    source: C:\bak\beardfamily-musicbak
+    ext:
+    - vb
+    - xls
+    exclusions:
+    - user
+    recursive: true
+serviceconfig:
+  Name: dirsynctos3
+  DisplayName: Directory Synchronization to AWS S3
+  Description": Directory Synchronization to AWS S3
+  UserName:
+  Arguments:
+  Executable:
+  Dependencies:
+  WorkingDirectory:
+  ChRoot:
+apiconfig:
+  port: 8080
+  protocol: "tcp"
+  issecure: false
+executionflags:
+  overwrite: false

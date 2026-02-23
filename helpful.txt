@@ -1,0 +1,31 @@
+journalctl -u DirSync-to-S3.service
+
+"searchext": ["flp"],
+"searchexclusions": ["win31","texture","svga","star wars","win98"],
+
+Static Build:
+CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -a -tags netgo -ldflags '-w -extldflags "-static"' -o directorysync-s3-service .
+CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -a -tags netgo -ldflags '-w -extldflags "-static"' -o directorysync-s3-service.exe
+
+
+CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -a -ldflags '-extldflags "-static"' -o directorysync-s3-service .
+
+CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -a -ldflags "-linkmode external -extldflags -static" -o directorysync-s3-service .
+
+CGO_ENABLED=0 GOOS=linux go build -a -v -installsuffix cgp -o ./$@.$(version) .
+
+VSCode Debug Configuration
+
+{
+            "name": "Launch",
+            "type": "go",
+            "request": "launch",
+            "mode": "auto",
+            "program": "${workspaceFolder}/main/main.go",
+            "env": {},
+            "args": [
+                "--profile",
+                "musicbak-local",
+                "--remote"
+            ]
+        }

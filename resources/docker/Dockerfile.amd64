@@ -1,0 +1,39 @@
+# Copyright © Sean Beard - All Rights Reserved
+# Unauthorized copying of this file, via any medium is strictly prohibited
+# Proprietary and confidential
+# Written by Sean Beard <kronedev@gmail.com>, December 2021
+
+# Build the Go Binary
+FROM golang:1.26.0 AS build
+
+ENV CGO_ENABLED=0
+
+ARG VCS_REF
+ARG BUILD_DATE
+ARG VERSION
+ARG GO_OS
+ARG GO_ARCH
+ARG BINARY
+
+RUN mkdir -p /code
+RUN mkdir -p /build
+
+# Copy the source code into the container
+COPY . /code
+
+# Set the working directory
+WORKDIR /code
+
+# Build the binary
+RUN GOOS=${GO_OS} GOARCH=${GO_ARCH} go build -o ./${BINARY} -ldflags "-X main.build=${VCS_REF} -X main.compileDate=${BUILD_DATE} -X main.version=${VERSION}" ./main
+
+# Create a volume
+VOLUME ["/build"]
+
+# Create the entrypoint shell script
+RUN echo "#!/bin/sh" > /startup.sh
+RUN echo "cp /code/${BINARY} /build" >> /startup.sh
+RUN chmod +x /startup.sh
+
+# Set the container entrypoint
+ENTRYPOINT [ "/startup.sh" ]
