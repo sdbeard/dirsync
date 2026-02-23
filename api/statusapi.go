@@ -1,8 +1,8 @@
-// Copyright © Sean Beard - All Rights Reserved
+// *********************************************************************************
+// Copyright © 2026 Sean Beard - All Rights Reserved
 // Unauthorized copying of this file, via any medium is strictly prohibited
-// Proprietary and confidential
-// Written by Sean Beard <sean.beard@parivedasolutions.com>, March 2018
-
+// Proprietary and Confidential
+// *********************************************************************************
 package api
 
 import (
