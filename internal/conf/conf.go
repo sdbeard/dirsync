@@ -6,12 +6,9 @@
 package conf
 
 import (
-	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 
-	"github.com/kardianos/osext"
 	apicfg "github.com/sdbeard/go-supportlib/api/config"
 	"github.com/sdbeard/go-supportlib/aws/service/s3"
 	"github.com/sdbeard/go-supportlib/common/logging"
@@ -19,9 +16,9 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-const configurationFile = "config.yaml"
+const confFile = "config.yaml"
 
-var configuration *SynchronizerServiceConfiguration
+var synchronizerConf *SynchronizerConf
 
 /***** FileCopyOptions ************************************************************/
 
@@ -41,11 +38,11 @@ type FileCopyOptions struct {
 // for the service to run under, these values determine how to change the way the
 // service runs, not the job the service is doing
 type ExecutionFlags struct {
-	ExecutionFolder string `yaml:"exefolder"`
-	RuntimeEnv      string `yaml:"env"`
-	NoSchedule      bool   `yaml:"noschedule"`
-	Simulation      bool   `yaml:"simulation"`
-	FileOverwrite   bool   `yaml:"overwrite"`
+	//ExecutionFolder string `yaml:"exefolder"`
+	RuntimeEnv    string `yaml:"env"`
+	NoSchedule    bool   `yaml:"noschedule"`
+	Simulation    bool   `yaml:"simulation"`
+	FileOverwrite bool   `yaml:"overwrite"`
 }
 
 /***********************************************************************************/
@@ -69,69 +66,76 @@ type SynchronizerDirectoryProfile struct {
 
 /**********************************************************************************/
 
-/***** SynchronizerServiceConfiguration *******************************************/
+/***** SynchronizerConf ***********************************************************/
 
-// SynchronizerServiceConfiguration holds all of the parameters to configure the
+// SynchronizerConf holds all of the parameters to configure the
 // service. This is designed to be read from a JSON file running in the current
 // directory. The name of the JSON file is hard coded to "dirsync_cfg.json"
-type SynchronizerServiceConfiguration struct {
+type SynchronizerConf struct {
 	SyncProfiles           map[string]SynchronizerDirectoryProfile `yaml:"syncprofiles"`
 	ExecFlags              ExecutionFlags                          `yaml:"executionflags"`
-	LogConfiguration       logging.LogConfig                       `yaml:"logconfig"`
+	LogConf                logging.LogConfig                       `yaml:"logconfig"`
 	ServiceConfiguration   *service.Config                         `yaml:"serviceconfig"`
 	StatusAPIConfiguration apicfg.ListenerConfig                   `yaml:"apiconfig"`
+	WorkingFolder          string                                  `json:"-"`
 }
 
 /***********************************************************************************/
 
 // GetConfiguration retrieves the current configuration read from dirsync_cfg.json,
 // and returns a pointer to a DirectorySyncS3ServiceConfiguration struct
-func GetConfiguration() *SynchronizerServiceConfiguration {
-	return configuration
+func GetSynchronizerConf() *SynchronizerConf {
+	return synchronizerConf
 }
 
 // LoadConfiguration loads the configuration file from yaml to the configuration
-func LoadConfiguration() error {
-	var configFile, workingFolder string
+func LoadSynchronizerConf(file string) error {
+	// Get the working folder
+	workingDir, _ := os.Getwd()
+	workingFolder, _ := filepath.Abs(workingDir)
+	filePath := filepath.Join(workingFolder, file)
 
-	if !service.Interactive() {
-		exeFolder, err := osext.ExecutableFolder()
-		if err != nil {
-			return (err)
-		}
-		configFile = fmt.Sprintf("%s%s%s", exeFolder, string(os.PathSeparator), configurationFile)
-		workingFolder = exeFolder
-	} else {
-		workingDir, err := os.Getwd()
-		if err != nil {
-			return err
-		}
+	/*
+		if !service.Interactive() {
+			exeFolder, err := osext.ExecutableFolder()
+			if err != nil {
+				return (err)
+			}
+			configFile = fmt.Sprintf("%s%s%s", exeFolder, string(os.PathSeparator), confFile)
+			workingFolder = exeFolder
+		} else {
+			workingDir, err := os.Getwd()
+			if err != nil {
+				return err
+			}
 
-		workingFolder, err = filepath.Abs(workingDir)
-		if err != nil {
-			return err
+			workingFolder, err = filepath.Abs(workingDir)
+			if err != nil {
+				return err
+			}
+			configFile = fmt.Sprintf("%s%s%s", workingFolder,
+				string(os.PathSeparator), confFile)
 		}
-		configFile = fmt.Sprintf("%s%s%s", workingFolder,
-			string(os.PathSeparator), configurationFile)
-	}
+	*/
 
-	configBytes, err := ioutil.ReadFile(configFile)
+	configBytes, err := os.ReadFile(filePath)
 	if err != nil {
 		return err
 	}
 
 	// Create the configuration object
-	configuration = &SynchronizerServiceConfiguration{}
+	synchronizerConf = &SynchronizerConf{}
 
 	// Unmarshal the configuration file
-	err = yaml.Unmarshal(configBytes, configuration)
+	err = yaml.Unmarshal(configBytes, synchronizerConf)
 	if err != nil {
 		return err
 	}
 
 	// Set the current folder
-	configuration.ExecFlags.ExecutionFolder = workingFolder
-	configuration.ServiceConfiguration.WorkingDirectory = workingFolder
+	synchronizerConf.WorkingFolder = workingFolder
+	//synchronizerConf.ExecFlags.ExecutionFolder = workingFolder
+	synchronizerConf.ServiceConfiguration.WorkingDirectory = workingFolder
 
 	return nil
 }

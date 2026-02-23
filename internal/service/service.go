@@ -19,7 +19,7 @@ func NewSynchronizerService() (*SynchronizerService, error) {
 	newService := &SynchronizerService{
 		synchronizers: make(map[string]*Synchronizer),
 		scheduler:     cron.New(),
-		statusAPI:     api.NewSynchronizerStatusAPI(conf.GetConfiguration().StatusAPIConfiguration),
+		statusAPI:     api.NewSynchronizerStatusAPI(conf.GetSynchronizerConf().StatusAPIConfiguration),
 		shuttingDown:  false,
 	}
 
@@ -80,7 +80,7 @@ func (syncsvc *SynchronizerService) Stop(svc service.Service) error {
 // service needs to run
 func (syncsvc *SynchronizerService) run() {
 	// Create the new channel
-	syncsvc.finishChan = make(chan bool, len(conf.GetConfiguration().SyncProfiles))
+	syncsvc.finishChan = make(chan bool, len(conf.GetSynchronizerConf().SyncProfiles))
 
 	// Start the API
 	go syncsvc.statusAPI.Start()
@@ -116,7 +116,7 @@ func (syncsvc *SynchronizerService) RunSynchronizer(name string) {
 func (syncsvc *SynchronizerService) GetSystemService() (service.Service, error) {
 	if syncsvc.systemService == nil {
 		// Create the system service
-		newSystemService, err := service.New(syncsvc, conf.GetConfiguration().ServiceConfiguration)
+		newSystemService, err := service.New(syncsvc, conf.GetSynchronizerConf().ServiceConfiguration)
 		if err != nil {
 			return nil, err
 		}
@@ -132,7 +132,7 @@ func (syncsvc *SynchronizerService) GetSystemService() (service.Service, error) 
 // to be run. Primarily configuring the scheduler
 func (syncsvc *SynchronizerService) initialize() error {
 	// Create, configure and add all of the synchronizers
-	for _, profileConfiguration := range conf.GetConfiguration().SyncProfiles {
+	for _, profileConfiguration := range conf.GetSynchronizerConf().SyncProfiles {
 		synchronizer, err := NewSynchronizer(profileConfiguration)
 		if err != nil {
 			return err

@@ -40,6 +40,8 @@ var (
 	version     string
 )
 
+/**********************************************************************************/
+
 func init() {
 	if err := conf.LoadConfiguration(); err != nil {
 		panic(err)
@@ -100,6 +102,8 @@ func main() {
 	// Exit the application
 	os.Exit(0)
 }
+
+/**********************************************************************************/
 
 func runInteractive(syncService *syncsvc.SynchronizerService) {
 	logger.Info("Starting dirsynctos3 service in standard mode (i.e. not as a service)....")

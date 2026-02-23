@@ -190,7 +190,8 @@ func (synchronizer *Synchronizer) scheduledTask() {
 func (synchronizer *Synchronizer) setEnvironment(clear bool) {
 	// Retrieve and load the .environ file if it exists in the current folder
 	// TODO: This is a magic string
-	environFile, err := os.Open(fmt.Sprintf("%s%s.environ", conf.GetConfiguration().ExecFlags.ExecutionFolder, string(os.PathSeparator)))
+	//environFile, err := os.Open(fmt.Sprintf("%s%s.environ", conf.GetSynchronizerConf().ExecFlags.ExecutionFolder, string(os.PathSeparator)))
+	environFile, err := os.Open(filepath.Join(conf.GetSynchronizerConf().WorkingFolder, ".environ"))
 	if err != nil {
 		logger.WithFields(logging.LogEntryContext(map[string]interface{}{})).Error(err.Error())
 		return
@@ -297,7 +298,7 @@ func (synchronizer *Synchronizer) buildLocalFileList() error {
 func (synchronizer *Synchronizer) writeSourceFiles(sourceFolder string, files []string) error {
 	// Create the file to write the file entries to
 	searchFile, err := os.Create(fmt.Sprintf("%s%ssearch.dat",
-		conf.GetConfiguration().ExecFlags.ExecutionFolder, string(os.PathSeparator))) // TODO: Get rid of magic string
+		conf.GetSynchronizerConf().WorkingFolder, string(os.PathSeparator))) // TODO: Get rid of magic string
 	if err != nil {
 		return err
 	}
@@ -306,7 +307,7 @@ func (synchronizer *Synchronizer) writeSourceFiles(sourceFolder string, files []
 	// Loop through the search files
 	for _, file := range files {
 		syncFile := strings.Replace(strings.ToLower(file), sourceFolder, "", -1)
-		if _, ok := synchronizer.synchronizedFileList[syncFile]; ok && !conf.GetConfiguration().ExecFlags.FileOverwrite {
+		if _, ok := synchronizer.synchronizedFileList[syncFile]; ok && !conf.GetSynchronizerConf().ExecFlags.FileOverwrite {
 			continue
 		}
 
@@ -371,7 +372,7 @@ func (synchronizer *Synchronizer) readSearchFile() {
 	// channel
 	searchFile, err := os.Open(fmt.Sprintf(
 		"%s%ssearch.dat",
-		conf.GetConfiguration().ExecFlags.ExecutionFolder,
+		conf.GetSynchronizerConf().WorkingFolder,
 		string(os.PathSeparator),
 	))
 	if err != nil {
@@ -462,7 +463,7 @@ func (synchronizer *Synchronizer) synchronizeFile(fileToSync string, threadName 
 	}
 
 	// Check if this is a simulation
-	if !conf.GetConfiguration().ExecFlags.Simulation {
+	if !conf.GetSynchronizerConf().ExecFlags.Simulation {
 		// Copy the fileToSync to S3 using the CopyFileRequest
 		if _, err := files.CopyFile(copyFileRequest); err != nil {
 			return err
@@ -470,7 +471,7 @@ func (synchronizer *Synchronizer) synchronizeFile(fileToSync string, threadName 
 	}
 
 	prefix := ""
-	if conf.GetConfiguration().ExecFlags.Simulation {
+	if conf.GetSynchronizerConf().ExecFlags.Simulation {
 		prefix = "SIMULATED: "
 	}
 
@@ -489,7 +490,7 @@ func (synchronizer *Synchronizer) synchronizeFile(fileToSync string, threadName 
 func (synchronizer *Synchronizer) startErrorListener() {
 	// Start the error go function for managing the file copy operations that encounter an error
 	errorFile, err := os.Create(fmt.Sprintf("%s%serrors.dat",
-		conf.GetConfiguration().ExecFlags.ExecutionFolder, string(os.PathSeparator)))
+		conf.GetSynchronizerConf().WorkingFolder, string(os.PathSeparator)))
 	if err != nil {
 		logger.WithFields(logging.LogEntryContext(map[string]interface{}{})).Error(err.Error())
 		return
