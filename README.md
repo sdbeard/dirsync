@@ -1,4 +1,4 @@
-# directorysync-s3-service
+# dirsync
 
 A Go service that synchronizes one or more local directories to Amazon S3 on a schedule, with optional service-mode execution, live status reporting, and per-profile filtering rules.
 
