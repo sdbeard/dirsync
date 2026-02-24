@@ -43,33 +43,19 @@ var (
 /**********************************************************************************/
 
 func init() {
-	if err := conf.LoadConfiguration(); err != nil {
+	if err := conf.LoadSynchronizerConf(); err != nil {
 		panic(err)
 	}
 	initializeCmdLineParameters()
+
+	if err := logging.InitializeLogging(conf.GetSynchronizerConf().LogConf); err != nil {
+		panic(err)
+	}
 }
 
 func main() {
-	//configuration := types.GetConfiguration()
-	if !service.Interactive() {
-		// Set the configuration so that any stand-alone mode flags are set to false or empty
-		conf.GetConfiguration().ExecFlags.NoSchedule = false
-		conf.GetConfiguration().ExecFlags.Simulation = false
 
-		// Run the service
-		if err := runAsService(); err != nil {
-			logger.Fatal(err.Error())
-			os.Exit(99)
-		}
-
-		os.Exit(0)
-	}
-
-	if err := logging.InitializeDefaultLogging(); err != nil {
-		panic(err)
-	}
-
-	logger.Info("KPS Directory Sync to S3 v2.0.0")
+	logger.Info("Directory Sync v3.0.0")
 	logger.WithFields(logging.LogEntryContext(map[string]interface{}{
 		"App Version": version,
 		"Build":       compileDate,
@@ -77,25 +63,6 @@ func main() {
 		"GO Version":  runtime.Version(),
 		"PID":         os.Getpid(),
 	})).Infof("Runtime configuration")
-
-	syncService, err := syncsvc.NewSynchronizerService()
-	if err != nil {
-		logger.Error(err.Error())
-		os.Exit(99)
-	}
-
-	// Execute the command
-	if command != "" {
-		systemService, err := syncService.GetSystemService()
-		if err != nil {
-			logger.Error(err.Error())
-			os.Exit(99)
-		}
-		processCommand(systemService)
-		os.Exit(0)
-	}
-
-	runInteractive(syncService)
 
 	logger.Info("dirsynctos3 service has completely shutdown")
 
@@ -105,17 +72,58 @@ func main() {
 
 /**********************************************************************************/
 
-func runInteractive(syncService *syncsvc.SynchronizerService) {
+func runNonInteractive() error {
+	if !service.Interactive() {
+
+	}
+
+	// Set the configuration so that any stand-alone mode flags are set to false or empty
+	conf.GetSynchronizerConf().ExecFlags.NoSchedule = false
+	conf.GetSynchronizerConf().ExecFlags.Simulation = false
+
+	// Run the service
+	if err := runAsService(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func createSyncService() error {
+	syncService, err := syncsvc.NewSynchronizerService()
+	if err != nil {
+		return err
+	}
+
+	return executeCommand(syncService)
+}
+
+func executeCommand(syncService *syncsvc.SynchronizerService) error {
+	if command == "" {
+		return runInteractive(syncService)
+	}
+
+	// Execute the command
+	systemService, err := syncService.GetSystemService()
+	if err != nil {
+		return err
+	}
+
+	processCommand(systemService)
+
+	return nil
+}
+
+func runInteractive(syncService *syncsvc.SynchronizerService) error {
 	logger.Info("Starting dirsynctos3 service in standard mode (i.e. not as a service)....")
 
 	// Run all of the configured profiles
 	if *profile != "" {
-		if _, ok := conf.GetConfiguration().SyncProfiles[*profile]; !ok {
-			logger.Error("profile not found")
-			return
+		if _, ok := conf.GetSynchronizerConf().SyncProfiles[*profile]; !ok {
+			return fmt.Errorf("run interactive: profile not found")
 		}
 		runSingleSynchronizer(*profile, syncService)
-		return
+		return nil
 	}
 
 	// Run the service from an interactive space

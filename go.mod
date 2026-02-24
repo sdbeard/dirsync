@@ -7,7 +7,6 @@ require (
 	github.com/gorhill/cronexpr v0.0.0-20180427100037-88b0669f7d75
 	github.com/gorilla/mux v1.8.1
 	github.com/justinas/alice v1.2.0
-	github.com/kardianos/osext v0.0.0-20190222173326-2bc1f35cddc0
 	github.com/robfig/cron v1.2.0
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/sdbeard/go-supportlib v1.0.1-0.20260220185126-b3f345c5a5f1
