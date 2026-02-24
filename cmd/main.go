@@ -29,21 +29,25 @@ import (
 )
 
 var (
-	profile   = flag.String("profile", "", "specifies a base profile to use/process; ignored in a non-interactive session")
-	remote    = flag.Bool("remote", false, "interactive only parameter: retrieves the remote directory and file listing from configured remote location; ignored if a profile is not provided)")
-	simulate  = flag.Bool("simulate", false, "tells the system to only simulate synchronizing files. No file are acutally copied to S3. (For development purposes only (only valid in stand-alone mode)")
-	overwrite = flag.Bool("overwrite", false, "tells the system to overwrite a file on S3.")
-	env       = "local"
-
-	command     string
-	compileDate string
-	version     string
+	configFile = flag.String("configfile", "config.yaml", "specifies the configuration file to use for the service configuration")
+	profile    = flag.String("profile", "", "specifies a base profile to use/process; ignored in a non-interactive session")
+	remote     = flag.Bool("remote", false, "interactive only parameter: retrieves the remote directory and file listing from configured remote location; ignored if a profile is not provided)")
+	simulate   = flag.Bool("simulate", false, "tells the system to only simulate synchronizing files. No file are acutally copied to S3. (For development purposes only (only valid in stand-alone mode)")
+	overwrite  = flag.Bool("overwrite", false, "tells the system to overwrite a file on S3.")
+	version    = "1.0.0"
+	env        = "local"
+	build      = ""
+	buildDate  = ""
+	command    = ""
 )
 
 /**********************************************************************************/
 
 func init() {
-	if err := conf.LoadSynchronizerConf(); err != nil {
+	flag.Parse()
+
+	// Load the configuration
+	if err := conf.LoadSynchronizerConf(*configFile); err != nil {
 		panic(err)
 	}
 	initializeCmdLineParameters()
@@ -58,11 +62,16 @@ func main() {
 	logger.Info("Directory Sync v3.0.0")
 	logger.WithFields(logging.LogEntryContext(map[string]interface{}{
 		"App Version": version,
-		"Build":       compileDate,
+		"Build":       buildDate,
 		"Environment": env,
 		"GO Version":  runtime.Version(),
 		"PID":         os.Getpid(),
 	})).Infof("Runtime configuration")
+
+	if err := runSyncService(); err != nil {
+		logger.Fatalf("error: %v", err)
+		os.Exit(1)
+	}
 
 	logger.Info("dirsynctos3 service has completely shutdown")
 
@@ -72,9 +81,11 @@ func main() {
 
 /**********************************************************************************/
 
-func runNonInteractive() error {
-	if !service.Interactive() {
+func runSyncService() error {
+	logger.WithFields(logging.LogEntryContext(logger.Fields{})).Debug()
 
+	if service.Interactive() {
+		return runInteractive()
 	}
 
 	// Set the configuration so that any stand-alone mode flags are set to false or empty
@@ -82,11 +93,29 @@ func runNonInteractive() error {
 	conf.GetSynchronizerConf().ExecFlags.Simulation = false
 
 	// Run the service
-	if err := runAsService(); err != nil {
-		return err
+	return runAsService()
+}
+
+/**********************************************************************************/
+
+func runInteractive(syncService *syncsvc.SynchronizerService) error {
+	logger.WithFields(logging.LogEntryContext(logger.Fields{})).Debug()
+	logger.Info("starting: interactive mode")
+
+	// Run all of the configured profiles
+	if *profile != "" {
+		if _, ok := conf.GetSynchronizerConf().SyncProfiles[*profile]; !ok {
+			return fmt.Errorf("run interactive: profile not found")
+		}
+		runSingleSynchronizer(*profile, syncService)
+		return nil
 	}
 
-	return nil
+	// Run the service from an interactive space
+	runInteractiveService(syncService)
+
+	// Get the service status and print the status to the log
+	types.GetServiceStatus().Log()
 }
 
 func createSyncService() error {
@@ -112,25 +141,6 @@ func executeCommand(syncService *syncsvc.SynchronizerService) error {
 	processCommand(systemService)
 
 	return nil
-}
-
-func runInteractive(syncService *syncsvc.SynchronizerService) error {
-	logger.Info("Starting dirsynctos3 service in standard mode (i.e. not as a service)....")
-
-	// Run all of the configured profiles
-	if *profile != "" {
-		if _, ok := conf.GetSynchronizerConf().SyncProfiles[*profile]; !ok {
-			return fmt.Errorf("run interactive: profile not found")
-		}
-		runSingleSynchronizer(*profile, syncService)
-		return nil
-	}
-
-	// Run the service from an interactive space
-	runInteractiveService(syncService)
-
-	// Get the service status and print the status to the log
-	types.GetServiceStatus().Log()
 }
 
 func runSingleSynchronizer(name string, syncService *syncsvc.SynchronizerService) {
@@ -170,16 +180,18 @@ func runAsService() error {
 	}
 
 	// Configure the logger
-	if err := logging.InitializeLogging(logging.LogConfig{
-		Type:        logging.FILE,
-		Format:      logging.TEXT,
-		MinLogLevel: logging.DEBUG,
-		Parameters: map[string]interface{}{
-			"filename": fmt.Sprintf("%s%ssyncservice.log", conf.GetConfiguration().ExecFlags.ExecutionFolder, string(os.PathSeparator)),
-		},
-	}); err != nil {
-		return fmt.Errorf("error running service: %v", err.Error())
-	}
+	/*
+		if err := logging.InitializeLogging(logging.LogConfig{
+			Type:        logging.FILE,
+			Format:      logging.TEXT,
+			MinLogLevel: logging.DEBUG,
+			Parameters: map[string]interface{}{
+				"filename": filepath.Join(conf.GetSynchronizerConf().WorkingFolder, "syncservice.log"),
+			},
+		}); err != nil {
+			return fmt.Errorf("error running service: %v", err.Error())
+		}
+	*/
 
 	stopChannel := createStopChannel()
 
@@ -249,26 +261,12 @@ func processCommand(systemService service.Service) {
 	}
 }
 
-// initializeCmdLineParameters updates the DirectorySyncS3ServiceConfiguration
-// parameter with the flags read from the command line
 func initializeCmdLineParameters() {
-	configuration := conf.GetConfiguration()
+	// Set configuration values based on the flags that have been set
+	conf.GetSynchronizerConf().ExecFlags.FileOverwrite = *overwrite
+	conf.GetSynchronizerConf().ExecFlags.Simulation = *simulate
 
-	// Parse the command line flags
-	flag.Parse()
-
-	if !configuration.ExecFlags.FileOverwrite {
-		configuration.ExecFlags.FileOverwrite = *overwrite
-	}
-
-	// Set the execution flags
-	//configuration.ExecFlags.NoSchedule = cmdNoSchedule
-	configuration.ExecFlags.Simulation = *simulate
-
-	// Determine if a command was passed on the command line, the acceptable
-	// commands only relate to service management install|uninstall|help are the
-	// primary commands. If not simply execute the service outside of the service
-	// construct
+	// Determine if a command was passed on the command line
 	for index := 1; index < len(os.Args); index++ {
 		// Determine if this is a command or a flag
 		if !strings.HasPrefix(os.Args[index], "-") {

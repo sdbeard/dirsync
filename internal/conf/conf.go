@@ -6,14 +6,15 @@
 package conf
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 
+	"github.com/sdbeard/dirsync/internal/types"
 	apicfg "github.com/sdbeard/go-supportlib/api/config"
-	"github.com/sdbeard/go-supportlib/aws/service/s3"
 	"github.com/sdbeard/go-supportlib/common/logging"
+	"github.com/sdbeard/go-supportlib/common/util"
 	"github.com/sdbeard/service"
-	"gopkg.in/yaml.v3"
 )
 
 const confFile = "config.yaml"
@@ -24,11 +25,11 @@ var synchronizerConf *SynchronizerConf
 
 // FileCopyOptions holds all of the fields that optimize the copying of files to S3.
 // These options include throttling values, max number of concurrent transfers, etc.
-type FileCopyOptions struct {
-	ThrottleBucketSizeKB int64 `yaml:"throttlebucketsizekb"`
-	ThrottleSync         bool  `yaml:"throttle"`
-	MaxConcurrentCopies  int   `yaml:"maxconcurrentcopies"`
-}
+//type FileCopyOptions struct {
+//	ThrottleBucketSizeKB int64 `yaml:"throttlebucketsizekb"`
+//	ThrottleSync         bool  `yaml:"throttle"`
+//	MaxConcurrentCopies  int   `yaml:"maxconcurrentcopies"`
+//}
 
 /***********************************************************************************/
 
@@ -39,10 +40,10 @@ type FileCopyOptions struct {
 // service runs, not the job the service is doing
 type ExecutionFlags struct {
 	//ExecutionFolder string `yaml:"exefolder"`
-	RuntimeEnv    string `yaml:"env"`
-	NoSchedule    bool   `yaml:"noschedule"`
-	Simulation    bool   `yaml:"simulation"`
-	FileOverwrite bool   `yaml:"overwrite"`
+	RuntimeEnv    string `json:"env"`
+	NoSchedule    bool   `json:"noschedule"`
+	Simulation    bool   `json:"simulation"`
+	FileOverwrite bool   `json:"overwrite"`
 }
 
 /***********************************************************************************/
@@ -51,18 +52,18 @@ type ExecutionFlags struct {
 
 // SynchronizerDirectoryProfile contains the parameters to completely configure an
 // instance of a Synchronizer
-type SynchronizerDirectoryProfile struct {
-	S3Config        s3.Configuration `yaml:"s3config"`
-	FileCopyOptions FileCopyOptions  `yaml:"filecopyoptions"`
-	Extensions      []string         `yaml:"ext"`
-	Exclusions      []string         `yaml:"exclusions"`
-	Name            string           `yamo:"name"`
-	Description     string           `yaml:"description"`
-	SourceFolder    string           `yaml:"source"`
-	ScheduleDef     string           `yaml:"scheduledef"`
-	Recursive       bool             `yaml:"recursive"`
-	RunAtStartup    bool             `yaml:"runatstartup"`
-}
+//type SynchronizerDirectoryProfile struct {
+//	S3Config        s3.Configuration `yaml:"s3config"`
+//	FileCopyOptions FileCopyOptions  `yaml:"filecopyoptions"`
+//	Extensions      []string         `yaml:"ext"`
+//	Exclusions      []string         `yaml:"exclusions"`
+//	Name            string           `yamo:"name"`
+//	Description     string           `yaml:"description"`
+//	SourceFolder    string           `yaml:"source"`
+//	ScheduleDef     string           `yaml:"scheduledef"`
+//	Recursive       bool             `yaml:"recursive"`
+//	RunAtStartup    bool             `yaml:"runatstartup"`
+//}
 
 /**********************************************************************************/
 
@@ -72,12 +73,12 @@ type SynchronizerDirectoryProfile struct {
 // service. This is designed to be read from a JSON file running in the current
 // directory. The name of the JSON file is hard coded to "dirsync_cfg.json"
 type SynchronizerConf struct {
-	SyncProfiles           map[string]SynchronizerDirectoryProfile `yaml:"syncprofiles"`
-	ExecFlags              ExecutionFlags                          `yaml:"executionflags"`
-	LogConf                logging.LogConfig                       `yaml:"logconfig"`
-	ServiceConfiguration   *service.Config                         `yaml:"serviceconfig"`
-	StatusAPIConfiguration apicfg.ListenerConfig                   `yaml:"apiconfig"`
-	WorkingFolder          string                                  `json:"-"`
+	Profiles             map[string]types.Profile `json:"profiles"`
+	ExecFlags            ExecutionFlags           `json:"executionflags"`
+	LogConf              logging.LogConfig        `json:"logconfig"`
+	ServiceConfiguration *service.Config          `json:"serviceconfig"`
+	APIConf              apicfg.ListenerConfig    `json:"apiconf"`
+	WorkingFolder        string                   `json:"-"`
 }
 
 /***********************************************************************************/
@@ -93,7 +94,20 @@ func LoadSynchronizerConf(file string) error {
 	// Get the working folder
 	workingDir, _ := os.Getwd()
 	workingFolder, _ := filepath.Abs(workingDir)
-	filePath := filepath.Join(workingFolder, file)
+
+	// Create the configuration object and set defaults
+	synchronizerConf = &SynchronizerConf{}
+	if file != "" {
+		fileBytes, err := util.ReadFile(filepath.Join(workingFolder, file))
+		if err != nil {
+			return err
+		}
+
+		// Unmarshal the configuration file
+		if err = json.Unmarshal(fileBytes, synchronizerConf); err != nil {
+			return err
+		}
+	}
 
 	/*
 		if !service.Interactive() {
@@ -117,20 +131,6 @@ func LoadSynchronizerConf(file string) error {
 				string(os.PathSeparator), confFile)
 		}
 	*/
-
-	configBytes, err := os.ReadFile(filePath)
-	if err != nil {
-		return err
-	}
-
-	// Create the configuration object
-	synchronizerConf = &SynchronizerConf{}
-
-	// Unmarshal the configuration file
-	err = yaml.Unmarshal(configBytes, synchronizerConf)
-	if err != nil {
-		return err
-	}
 
 	// Set the current folder
 	synchronizerConf.WorkingFolder = workingFolder

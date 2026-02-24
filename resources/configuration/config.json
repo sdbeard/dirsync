@@ -1,0 +1,52 @@
+{
+  "profiles": {
+    "musicbak-local": {
+      "name": "musicbak-local",
+      "description": "musicbak-local",
+      "target": "awss3",
+      "targetconf": {
+        "connect": {
+          "region": "us-east-1",
+          "endpoint": "https://aws.pvsemtech.io",
+          "s3usepathstyle": true
+        },
+        "bucket": "beardfamily-music-dev",
+        "s3storageclass": "standard_ia"
+      },
+      "filecopyoptions": {
+        "throttlebucketsizekb": 2048,
+        "throttle": false,
+        "maxconcurrentcopies": 1
+      },
+      "source": "/development/data/files",
+      "ext": [
+        "txt",
+        "vb"
+      ],
+      "exclusions": [
+        "user"
+      ],
+      "scheduledef": "* * * * *",
+      "runatstartup": false,
+      "recursive": true
+    }
+  },
+  "serviceconf": {
+    "name": "dirsync",
+    "displayname": "Directory Synchronization Service",
+    "description": "Directory Synchronization Service",
+    "username": "",
+    "arguments": "",
+    "executable": "",
+    "dependencies": "",
+    "chroot": ""
+  },
+  "apiconf": {
+    "port": 8080,
+    "protocol": "tcp",
+    "secure": false
+  },
+  "executionflags": {
+    "overwrite": false
+  }
+}
