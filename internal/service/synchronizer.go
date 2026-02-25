@@ -370,11 +370,7 @@ func (synchronizer *Synchronizer) readSearchFile() {
 
 	// Open and iterate over the search.dat file and add each entry to the syncJobs
 	// channel
-	searchFile, err := os.Open(fmt.Sprintf(
-		"%s%ssearch.dat",
-		conf.GetSynchronizerConf().WorkingFolder,
-		string(os.PathSeparator),
-	))
+	searchFile, err := os.Open(filepath.Join(conf.GetSynchronizerConf().WorkingFolder, "search.dat"))
 	if err != nil {
 		logger.Error(err.Error())
 		return
