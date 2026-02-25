@@ -12,7 +12,7 @@ TODO:
 */
 
 import (
-	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"os"
@@ -21,6 +21,7 @@ import (
 
 	"github.com/sdbeard/dirsync/internal/conf"
 	syncsvc "github.com/sdbeard/dirsync/internal/service"
+	"github.com/sdbeard/dirsync/internal/types"
 	"github.com/sdbeard/go-supportlib/common/logging"
 	"github.com/sdbeard/go-supportlib/common/util"
 	"github.com/sdbeard/service"
@@ -109,7 +110,6 @@ func runInteractive(syncService *syncsvc.SynchronizerService) error {
 	if *profile == "" {
 		profiles = util.GetMapKeySlice(conf.GetSynchronizerConf().Profiles)
 	}
-	_ = profiles
 
 	// Run all of the configured profiles
 	/*if *profile != "" {
@@ -224,33 +224,10 @@ func runAsService(syncService *syncsvc.SynchronizerService) error {
 func runInteractiveService(syncService *syncsvc.SynchronizerService, profiles []string) error {
 	logger.WithFields(logging.LogEntryContext(logger.Fields{})).Debug()
 
-	//stopChannel := createStopChannel()
-	//go syncService.Start(nil)
-
 	var errs []error
 	var lock sync.Mutex
 	var waitGroup sync.WaitGroup
 	waitGroup.Add(len(profiles))
-
-	/*
-	// Create the service
-	synchronizer := syncService.RetrieveSynchronizer(name)
-
-	if *remote {
-		files, err := synchronizer.ListRemote()
-		if err != nil {
-			return err
-		}
-		printRemoteFiles(files)
-		return nil
-	}
-
-	// Run the synchronizer
-	synchronizer.Run()
-
-	// Get the service status and print the status to the log
-	types.GetServiceStatus().GetSynchronizerStatus(*profile).Log()
-	*/
 
 	for _, profile := range profiles {
 		go func(currentProfile string) {
@@ -269,37 +246,17 @@ func runInteractiveService(syncService *syncsvc.SynchronizerService, profiles []
 				printRemoteFiles(files)
 				return
 			}
+
+			// Run the synchronizer
+			synchronizer.Run()
+
+			// Get the service status and print the status to the log
+			types.GetServiceStatus().GetSynchronizerStatus(profile).Log()
 		}(profile)
 	}
-
-		go func(currentTarget targets.RuleTarget) {
-			defer waitGroup.Done()
-			executor, err := factory.Build(currentTarget)
-			if err != nil {
-				errMux.Lock()
-				targetErrs = append(targetErrs, fmt.Errorf("build target %s (%s): %w", currentTarget.Name, currentTarget.Type, err))
-				errMux.Unlock()
-				return
-			}
-
-			if err = executor.Execute(context.Background(), req, body); err != nil {
-				errMux.Lock()
-				targetErrs = append(targetErrs, fmt.Errorf("execute target %s (%s): %w", currentTarget.Name, currentTarget.Type, err))
-				errMux.Unlock()
-			}
-		}(target)
-	}
-
 	waitGroup.Wait()
 
-	// Capture the shutdown signal and stop the service
-	//<-stopChannel
-	//close(stopChannel)
-
-	// Stop the service gracefully
-	//syncService.Stop(nil)
-
-	logger.Info("dirsynctos3 service has completely shutdown")
+	return errors.Join(errs...)
 }
 
 /*
