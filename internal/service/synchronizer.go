@@ -297,8 +297,8 @@ func (synchronizer *Synchronizer) buildLocalFileList() error {
 
 func (synchronizer *Synchronizer) writeSourceFiles(sourceFolder string, files []string) error {
 	// Create the file to write the file entries to
-	searchFile, err := os.Create(fmt.Sprintf("%s%ssearch.dat",
-		conf.GetSynchronizerConf().WorkingFolder, string(os.PathSeparator))) // TODO: Get rid of magic string
+	// TODO: Get rid of magic string
+	searchFile, err := os.Create(filepath.Join(conf.GetSynchronizerConf().WorkingFolder, "search.dat"))
 	if err != nil {
 		return err
 	}
