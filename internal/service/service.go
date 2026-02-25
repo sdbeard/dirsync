@@ -115,12 +115,12 @@ func (syncsvc *SynchronizerService) GetSystemService() (service.Service, error) 
 
 func (syncsvc *SynchronizerService) initialize() error {
 	// Create, configure and add all of the synchronizers
-	for _, profileConfiguration := range conf.GetSynchronizerConf().Profiles {
-		synchronizer, err := NewSynchronizer(profileConfiguration)
+	for _, profile := range conf.GetSynchronizerConf().Profiles {
+		synchronizer, err := NewSynchronizer(profile)
 		if err != nil {
 			return err
 		}
-		syncsvc.synchronizers[profileConfiguration.Name] = synchronizer
+		syncsvc.synchronizers[profile.Name] = synchronizer
 	}
 
 	return nil

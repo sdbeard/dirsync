@@ -3,7 +3,7 @@
 // Unauthorized copying of this file, via any medium is strictly prohibited
 // Proprietary and Confidential
 // *********************************************************************************
-package service
+package types
 
 import (
 	"bufio"
@@ -45,8 +45,34 @@ func NewSynchronizer(profile types.Profile) (*Synchronizer, error) {
 
 // Synchronizer is the main object that does the directory synchronization. It
 // contains the objects required to synchronize the configured directory/directories
+/*
 type Synchronizer struct {
 	profile              types.Profile
+	status               *types.SynchronizerStatus
+	scheduler            *cron.Cron
+	synchronizedFileList map[string]bool
+	syncJobs             chan string
+	errorJobs            chan string
+	jobsCompleted        chan bool
+	parentChan           chan bool
+	nextRunTime          time.Time
+	processing           bool
+	shuttingDown         bool
+}
+*/
+type Synchronizer struct {
+	TargetConf      any             `json:"targetconf"`
+	FileCopyOptions FileCopyOptions `json:"filecopyoptions"`
+	Extensions      []string        `json:"ext"`
+	Exclusions      []string        `json:"exclusions"`
+	Name            string          `json:"name"`
+	Description     string          `json:"description"`
+	SourceFolder    string          `json:"source"`
+	ScheduleDef     string          `json:"scheduledef"`
+	TargetLocation  LocationType    `json:"targetlocation"`
+	Recursive       bool            `json:"recursive"`
+	RunAtStartup    bool            `json:"runatstartup"`
+
 	status               *types.SynchronizerStatus
 	scheduler            *cron.Cron
 	synchronizedFileList map[string]bool
@@ -66,7 +92,7 @@ type Synchronizer struct {
 func (synchronizer *Synchronizer) Startup(finishChan chan bool) {
 	synchronizer.parentChan = finishChan
 
-	if synchronizer.profile.RunAtStartup {
+	if synchronizer.RunAtStartup {
 		synchronizer.Run()
 	}
 
@@ -165,7 +191,7 @@ func (synchronizer *Synchronizer) initialize() error {
 	synchronizer.resetSynchronizerStatus()
 
 	// Configure the scheduler
-	_, err := synchronizer.scheduler.AddFunc(synchronizer.profile.ScheduleDef, synchronizer.scheduledTask)
+	_, err := synchronizer.scheduler.AddFunc(synchronizer.ScheduleDef, synchronizer.scheduledTask)
 
 	return err
 }
@@ -243,8 +269,8 @@ func (synchronizer *Synchronizer) readEnviron(environ *os.File) {
 // already exists on S3
 func (synchronizer *Synchronizer) buildRemoteFileList() error {
 	contents, err := s3.GetBucketKeys(
-		synchronizer.profile.S3Config.Connect,
-		synchronizer.profile.S3Config.Bucket,
+		synchronizer.S3Config.Connect,
+		synchronizer.S3Config.Bucket,
 		"",
 	)
 	if err != nil {
@@ -262,7 +288,7 @@ func (synchronizer *Synchronizer) buildRemoteFileList() error {
 // buildLocalFileList execute step 1 of the service execution process which gathers
 // a file list of the available files to synchronize in the the search folder
 func (synchronizer *Synchronizer) buildLocalFileList() error {
-	sourceFolder := strings.ToLower(synchronizer.profile.SourceFolder)
+	sourceFolder := strings.ToLower(synchronizer.SourceFolder)
 	if !strings.HasSuffix(sourceFolder, string(os.PathSeparator)) {
 		sourceFolder = fmt.Sprintf("%s%s", sourceFolder, string(os.PathSeparator))
 	}

@@ -5,6 +5,8 @@
 // *********************************************************************************
 package types
 
+import "encoding/json"
+
 /***** Profile ********************************************************************/
 
 type Profile struct {
@@ -16,9 +18,42 @@ type Profile struct {
 	Description     string          `json:"description"`
 	SourceFolder    string          `json:"source"`
 	ScheduleDef     string          `json:"scheduledef"`
-	Target          int             `json:"target"`
+	TargetLocation  LocationType    `json:"targetlocation"`
 	Recursive       bool            `json:"recursive"`
 	RunAtStartup    bool            `json:"runatstartup"`
+}
+
+/***** Marshaler interface definitions ********************************************/
+
+// MarshalJSON marshals the Profile to a JSON string
+func (profile Profile) MarshalJSON() ([]byte, error) {
+	type Alias Profile
+	return json.Marshal(&struct {
+		TargetLocation string `json:"targetlocation"`
+		Alias
+	}{
+		TargetLocation: profile.TargetLocation.String(),
+		Alias:          (Alias)(profile),
+	})
+}
+
+// UnmarshalJSON unmarshals JSON string to a Profile object
+func (profile *Profile) UnmarshalJSON(data []byte) error {
+	type Alias Profile
+	aux := &struct {
+		TargetLocation string `json:"targetlocation"`
+		*Alias
+	}{
+		Alias: (*Alias)(profile),
+	}
+
+	if err := json.Unmarshal(data, &aux); err != nil {
+		return err
+	}
+
+	profile.TargetLocation = LocationTypeFromString(aux.TargetLocation)
+
+	return nil
 }
 
 /**********************************************************************************/
