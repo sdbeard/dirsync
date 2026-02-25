@@ -19,7 +19,7 @@ func NewSynchronizerService() (*SynchronizerService, error) {
 	newService := &SynchronizerService{
 		synchronizers: make(map[string]*Synchronizer),
 		scheduler:     cron.New(),
-		statusAPI:     api.NewSynchronizerStatusAPI(conf.GetSynchronizerConf().StatusAPIConfiguration),
+		statusAPI:     api.NewSynchronizerStatusAPI(conf.GetSynchronizerConf().APIConf),
 		shuttingDown:  false,
 	}
 
@@ -75,21 +75,6 @@ func (syncsvc *SynchronizerService) Stop(svc service.Service) error {
 	return nil
 }
 
-// run kicks off the work to be done on the underlying service. This function also
-// orchestrates/manages the scheduling function used to determine how often the
-// service needs to run
-func (syncsvc *SynchronizerService) run() {
-	// Create the new channel
-	syncsvc.finishChan = make(chan bool, len(conf.GetSynchronizerConf().SyncProfiles))
-
-	// Start the API
-	go syncsvc.statusAPI.Start()
-
-	for _, synchronizer := range syncsvc.synchronizers {
-		go synchronizer.Startup(syncsvc.finishChan)
-	}
-}
-
 /***** exported functions *********************************************************/
 
 // RetrieveSynchronizer retrieves a single synchronizer by name
@@ -128,11 +113,9 @@ func (syncsvc *SynchronizerService) GetSystemService() (service.Service, error) 
 
 /**********************************************************************************/
 
-// initialize takes the configuration and system service and configures the service
-// to be run. Primarily configuring the scheduler
 func (syncsvc *SynchronizerService) initialize() error {
 	// Create, configure and add all of the synchronizers
-	for _, profileConfiguration := range conf.GetSynchronizerConf().SyncProfiles {
+	for _, profileConfiguration := range conf.GetSynchronizerConf().Profiles {
 		synchronizer, err := NewSynchronizer(profileConfiguration)
 		if err != nil {
 			return err
@@ -141,6 +124,17 @@ func (syncsvc *SynchronizerService) initialize() error {
 	}
 
 	return nil
+}
+func (syncsvc *SynchronizerService) run() {
+	// Create the new channel
+	syncsvc.finishChan = make(chan bool, len(conf.GetSynchronizerConf().Profiles))
+
+	// Start the API
+	go syncsvc.statusAPI.Start()
+
+	for _, synchronizer := range syncsvc.synchronizers {
+		go synchronizer.Startup(syncsvc.finishChan)
+	}
 }
 
 /**********************************************************************************/

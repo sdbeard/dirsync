@@ -12,33 +12,32 @@ TODO:
 */
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"os"
-	"os/signal"
 	"runtime"
-	"strings"
-	"syscall"
+	"sync"
 
 	"github.com/sdbeard/dirsync/internal/conf"
 	syncsvc "github.com/sdbeard/dirsync/internal/service"
-	"github.com/sdbeard/dirsync/internal/types"
 	"github.com/sdbeard/go-supportlib/common/logging"
+	"github.com/sdbeard/go-supportlib/common/util"
 	"github.com/sdbeard/service"
 	logger "github.com/sirupsen/logrus"
 )
 
 var (
-	configFile = flag.String("configfile", "config.yaml", "specifies the configuration file to use for the service configuration")
-	profile    = flag.String("profile", "", "specifies a base profile to use/process; ignored in a non-interactive session")
-	remote     = flag.Bool("remote", false, "interactive only parameter: retrieves the remote directory and file listing from configured remote location; ignored if a profile is not provided)")
-	simulate   = flag.Bool("simulate", false, "tells the system to only simulate synchronizing files. No file are acutally copied to S3. (For development purposes only (only valid in stand-alone mode)")
-	overwrite  = flag.Bool("overwrite", false, "tells the system to overwrite a file on S3.")
-	version    = "1.0.0"
-	env        = "local"
-	build      = ""
-	buildDate  = ""
-	command    = ""
+	config    = flag.String("config", "config.json", "specifies the configuration file to use for the service configuration")
+	profile   = flag.String("profile", "", "specifies a base profile to use/process; ignored in a non-interactive session")
+	remote    = flag.Bool("remote", false, "interactive only parameter: retrieves the remote directory and file listing from configured remote location; ignored if a profile is not provided)")
+	simulate  = flag.Bool("simulate", false, "tells the system to only simulate synchronizing files. No file are acutally copied to S3. (For development purposes only (only valid in stand-alone mode)")
+	overwrite = flag.Bool("overwrite", false, "tells the system to overwrite a file on S3.")
+	version   = "1.0.0"
+	env       = "local"
+	build     = ""
+	buildDate = ""
+	command   = ""
 )
 
 /**********************************************************************************/
@@ -47,7 +46,7 @@ func init() {
 	flag.Parse()
 
 	// Load the configuration
-	if err := conf.LoadSynchronizerConf(*configFile); err != nil {
+	if err := conf.LoadSynchronizerConf(*config); err != nil {
 		panic(err)
 	}
 	initializeCmdLineParameters()
@@ -74,8 +73,6 @@ func main() {
 	}
 
 	logger.Info("dirsynctos3 service has completely shutdown")
-
-	// Exit the application
 	os.Exit(0)
 }
 
@@ -84,8 +81,13 @@ func main() {
 func runSyncService() error {
 	logger.WithFields(logging.LogEntryContext(logger.Fields{})).Debug()
 
+	syncService, err := syncsvc.NewSynchronizerService()
+	if err != nil {
+		return err
+	}
+
 	if service.Interactive() {
-		return runInteractive()
+		return runInteractive(syncService)
 	}
 
 	// Set the configuration so that any stand-alone mode flags are set to false or empty
@@ -93,7 +95,8 @@ func runSyncService() error {
 	conf.GetSynchronizerConf().ExecFlags.Simulation = false
 
 	// Run the service
-	return runAsService()
+	return fmt.Errorf("not implemented exception")
+	//return runAsService(syncService)
 }
 
 /**********************************************************************************/
@@ -102,22 +105,29 @@ func runInteractive(syncService *syncsvc.SynchronizerService) error {
 	logger.WithFields(logging.LogEntryContext(logger.Fields{})).Debug()
 	logger.Info("starting: interactive mode")
 
+	profiles := []string{*profile}
+	if *profile == "" {
+		profiles = util.GetMapKeySlice(conf.GetSynchronizerConf().Profiles)
+	}
+	_ = profiles
+
 	// Run all of the configured profiles
-	if *profile != "" {
-		if _, ok := conf.GetSynchronizerConf().SyncProfiles[*profile]; !ok {
+	/*if *profile != "" {
+		if _, ok := conf.GetSynchronizerConf().Profiles[*profile]; !ok {
 			return fmt.Errorf("run interactive: profile not found")
 		}
 		runSingleSynchronizer(*profile, syncService)
 		return nil
-	}
+	}*/
 
 	// Run the service from an interactive space
-	runInteractiveService(syncService)
+	return runInteractiveService(syncService, profiles)
 
 	// Get the service status and print the status to the log
-	types.GetServiceStatus().Log()
+	//types.GetServiceStatus().Log()
 }
 
+/*
 func createSyncService() error {
 	syncService, err := syncsvc.NewSynchronizerService()
 	if err != nil {
@@ -128,6 +138,8 @@ func createSyncService() error {
 }
 
 func executeCommand(syncService *syncsvc.SynchronizerService) error {
+	logger.WithFields(logging.LogEntryContext(logger.Fields{})).Debug()
+
 	if command == "" {
 		return runInteractive(syncService)
 	}
@@ -143,8 +155,9 @@ func executeCommand(syncService *syncsvc.SynchronizerService) error {
 	return nil
 }
 
-func runSingleSynchronizer(name string, syncService *syncsvc.SynchronizerService) {
-	logger.Info("Starting dirsynctos3 service in standard mode (i.e. not as a service)....")
+func runSingleSynchronizer(name string, syncService *syncsvc.SynchronizerService) error {
+	logger.WithFields(logging.LogEntryContext(logger.Fields{})).Debug()
+	logger.Info("starting: interactive mode")
 
 	// Create the service
 	synchronizer := syncService.RetrieveSynchronizer(name)
@@ -152,11 +165,10 @@ func runSingleSynchronizer(name string, syncService *syncsvc.SynchronizerService
 	if *remote {
 		files, err := synchronizer.ListRemote()
 		if err != nil {
-			logger.Error(err.Error())
-			return
+			return err
 		}
 		printRemoteFiles(files)
-		return
+		return nil
 	}
 
 	// Run the synchronizer
@@ -168,11 +180,8 @@ func runSingleSynchronizer(name string, syncService *syncsvc.SynchronizerService
 
 // runAsService runs the underlying service as a system service instead of a single
 // run on the command line
-func runAsService() error {
-	syncService, err := syncsvc.NewSynchronizerService()
-	if err != nil {
-		return err
-	}
+func runAsService(syncService *syncsvc.SynchronizerService) error {
+	logger.WithFields(logging.LogEntryContext(logger.Fields{})).Debug()
 
 	systemService, err := syncService.GetSystemService()
 	if err != nil {
@@ -191,8 +200,9 @@ func runAsService() error {
 		}); err != nil {
 			return fmt.Errorf("error running service: %v", err.Error())
 		}
-	*/
+*/
 
+/*
 	stopChannel := createStopChannel()
 
 	if err := systemService.Run(); err != nil {
@@ -209,26 +219,93 @@ func runAsService() error {
 
 	return nil
 }
+*/
 
-// runAsService runs the underlying service as a system service instead of a single
-// run on the command line
-func runInteractiveService(syncService *syncsvc.SynchronizerService) {
-	stopChannel := createStopChannel()
+func runInteractiveService(syncService *syncsvc.SynchronizerService, profiles []string) error {
+	logger.WithFields(logging.LogEntryContext(logger.Fields{})).Debug()
 
-	go syncService.Start(nil)
+	//stopChannel := createStopChannel()
+	//go syncService.Start(nil)
+
+	var errs []error
+	var lock sync.Mutex
+	var waitGroup sync.WaitGroup
+	waitGroup.Add(len(profiles))
+
+	/*
+	// Create the service
+	synchronizer := syncService.RetrieveSynchronizer(name)
+
+	if *remote {
+		files, err := synchronizer.ListRemote()
+		if err != nil {
+			return err
+		}
+		printRemoteFiles(files)
+		return nil
+	}
+
+	// Run the synchronizer
+	synchronizer.Run()
+
+	// Get the service status and print the status to the log
+	types.GetServiceStatus().GetSynchronizerStatus(*profile).Log()
+	*/
+
+	for _, profile := range profiles {
+		go func(currentProfile string) {
+			defer waitGroup.Done()
+
+			synchronizer := syncService.RetrieveSynchronizer(profile)
+
+			if *remote {
+				files, err := synchronizer.ListRemote()
+				if err != nil {
+					lock.Lock()
+					defer lock.Unlock()
+					errs = append(errs, err)
+					return
+				}
+				printRemoteFiles(files)
+				return
+			}
+		}(profile)
+	}
+
+		go func(currentTarget targets.RuleTarget) {
+			defer waitGroup.Done()
+			executor, err := factory.Build(currentTarget)
+			if err != nil {
+				errMux.Lock()
+				targetErrs = append(targetErrs, fmt.Errorf("build target %s (%s): %w", currentTarget.Name, currentTarget.Type, err))
+				errMux.Unlock()
+				return
+			}
+
+			if err = executor.Execute(context.Background(), req, body); err != nil {
+				errMux.Lock()
+				targetErrs = append(targetErrs, fmt.Errorf("execute target %s (%s): %w", currentTarget.Name, currentTarget.Type, err))
+				errMux.Unlock()
+			}
+		}(target)
+	}
+
+	waitGroup.Wait()
 
 	// Capture the shutdown signal and stop the service
-	<-stopChannel
-	close(stopChannel)
+	//<-stopChannel
+	//close(stopChannel)
 
 	// Stop the service gracefully
-	syncService.Stop(nil)
+	//syncService.Stop(nil)
 
 	logger.Info("dirsynctos3 service has completely shutdown")
 }
 
+/*
+
 func processCommand(systemService service.Service) {
-	configuration := conf.GetConfiguration()
+	configuration := conf.GetSynchronizerConf()
 	switch command {
 	case "install":
 		fmt.Printf("Installing the %s service\n", configuration.ServiceConfiguration.Name)
@@ -285,9 +362,12 @@ func createStopChannel() chan os.Signal {
 
 	return stopChannel
 }
+*/
 
 func printRemoteFiles(synchronizedFileList map[string]bool) {
 	for fileName := range synchronizedFileList {
 		fmt.Println(fileName)
 	}
 }
+
+/**********************************************************************************/

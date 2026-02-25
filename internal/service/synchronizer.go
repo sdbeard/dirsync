@@ -28,10 +28,10 @@ import (
 
 // NewSynchronizer creates and returns a pointer to a new DirectorySyncService
 // object. Otherwise an error is returned.
-func NewSynchronizer(config conf.SynchronizerDirectoryProfile) (*Synchronizer, error) {
+func NewSynchronizer(profile types.Profile) (*Synchronizer, error) {
 	// Create a new Synchronizer
 	synchronizer := &Synchronizer{
-		configuration:        config,
+		profile:              profile,
 		scheduler:            cron.New(),
 		synchronizedFileList: make(map[string]bool),
 		processing:           false,
@@ -46,7 +46,7 @@ func NewSynchronizer(config conf.SynchronizerDirectoryProfile) (*Synchronizer, e
 // Synchronizer is the main object that does the directory synchronization. It
 // contains the objects required to synchronize the configured directory/directories
 type Synchronizer struct {
-	configuration        conf.SynchronizerDirectoryProfile
+	profile              types.Profile
 	status               *types.SynchronizerStatus
 	scheduler            *cron.Cron
 	synchronizedFileList map[string]bool
@@ -66,7 +66,7 @@ type Synchronizer struct {
 func (synchronizer *Synchronizer) Startup(finishChan chan bool) {
 	synchronizer.parentChan = finishChan
 
-	if synchronizer.configuration.RunAtStartup {
+	if synchronizer.profile.RunAtStartup {
 		synchronizer.Run()
 	}
 
@@ -165,7 +165,7 @@ func (synchronizer *Synchronizer) initialize() error {
 	synchronizer.resetSynchronizerStatus()
 
 	// Configure the scheduler
-	_, err := synchronizer.scheduler.AddFunc(synchronizer.configuration.ScheduleDef, synchronizer.scheduledTask)
+	_, err := synchronizer.scheduler.AddFunc(synchronizer.profile.ScheduleDef, synchronizer.scheduledTask)
 
 	return err
 }
@@ -243,8 +243,8 @@ func (synchronizer *Synchronizer) readEnviron(environ *os.File) {
 // already exists on S3
 func (synchronizer *Synchronizer) buildRemoteFileList() error {
 	contents, err := s3.GetBucketKeys(
-		synchronizer.configuration.S3Config.Connect,
-		synchronizer.configuration.S3Config.Bucket,
+		synchronizer.profile.S3Config.Connect,
+		synchronizer.profile.S3Config.Bucket,
 		"",
 	)
 	if err != nil {
@@ -262,7 +262,7 @@ func (synchronizer *Synchronizer) buildRemoteFileList() error {
 // buildLocalFileList execute step 1 of the service execution process which gathers
 // a file list of the available files to synchronize in the the search folder
 func (synchronizer *Synchronizer) buildLocalFileList() error {
-	sourceFolder := strings.ToLower(synchronizer.configuration.SourceFolder)
+	sourceFolder := strings.ToLower(synchronizer.profile.SourceFolder)
 	if !strings.HasSuffix(sourceFolder, string(os.PathSeparator)) {
 		sourceFolder = fmt.Sprintf("%s%s", sourceFolder, string(os.PathSeparator))
 	}
@@ -283,7 +283,7 @@ func (synchronizer *Synchronizer) buildLocalFileList() error {
 			if synchronizer.isIncluded(path) {
 				files = append(files, path)
 			}
-		} else if !synchronizer.configuration.Recursive && (path != sourceFolder) {
+		} else if !synchronizer.profile.Recursive && (path != sourceFolder) {
 			return filepath.SkipDir
 		}
 
@@ -331,7 +331,7 @@ func (synchronizer *Synchronizer) synchronizeFiles() {
 	go synchronizer.startErrorListener()
 
 	// Create and start the max concurrent copies Go functions
-	for index := 0; index < synchronizer.configuration.FileCopyOptions.MaxConcurrentCopies; index++ {
+	for index := 0; index < synchronizer.profile.FileCopyOptions.MaxConcurrentCopies; index++ {
 		go synchronizer.synchronize(index)
 	}
 
@@ -353,7 +353,7 @@ func (synchronizer *Synchronizer) closeChannels() {
 	closedSynchronizers := 0
 	for range synchronizer.jobsCompleted {
 		closedSynchronizers++
-		if closedSynchronizers == synchronizer.configuration.FileCopyOptions.MaxConcurrentCopies {
+		if closedSynchronizers == synchronizer.profile.FileCopyOptions.MaxConcurrentCopies {
 			break
 		}
 	}
@@ -433,7 +433,7 @@ func (synchronizer *Synchronizer) synchronizeFile(fileToSync string, threadName 
 
 	// Build the S3 PATH value - based on the original search folder
 	s3Path := filepath.Dir(fileToSync)
-	source := synchronizer.configuration.SourceFolder
+	source := synchronizer.profile.SourceFolder
 	if strings.Contains(strings.ToLower(s3Path), strings.ToLower(source)) {
 		s3Path = s3Path[len(source):]
 	}
@@ -447,18 +447,18 @@ func (synchronizer *Synchronizer) synchronizeFile(fileToSync string, threadName 
 	copyFileRequest := files.CopyFileRequest{
 		Source: files.NewLocalFile(filepath.Dir(fileToSync), filepath.Base(fileToSync)),
 		Destination: files.NewS3File(
-			synchronizer.configuration.S3Config.Connect,
-			synchronizer.configuration.S3Config.Bucket,
+			synchronizer.profile.S3Config.Connect,
+			synchronizer.profile.S3Config.Bucket,
 			s3Path,
 			filepath.Base(fileToSync),
-			synchronizer.configuration.S3Config.StorageClass.String(),
+			synchronizer.profile.S3Config.StorageClass.String(),
 		),
 	}
 
 	// Check if we need to set the connection throttling
-	if synchronizer.configuration.FileCopyOptions.ThrottleSync {
+	if synchronizer.profile.FileCopyOptions.ThrottleSync {
 		copyFileRequest.Throttled = &files.CopyThrottleConfiguration{
-			ThrottleBucketSize: synchronizer.configuration.FileCopyOptions.ThrottleBucketSizeKB,
+			ThrottleBucketSize: synchronizer.profile.FileCopyOptions.ThrottleBucketSizeKB,
 		}
 	}
 
@@ -509,13 +509,13 @@ func (synchronizer *Synchronizer) startErrorListener() {
 // the current path value should be included in an operation
 func (synchronizer *Synchronizer) isIncluded(path string) bool {
 	include := true
-	if len(synchronizer.configuration.Extensions) > 0 {
-		include = synchronizer.hasExtension(path, synchronizer.configuration.Extensions)
+	if len(synchronizer.profile.Extensions) > 0 {
+		include = synchronizer.hasExtension(path, synchronizer.profile.Extensions)
 	}
 
 	exclude := false
-	if len(synchronizer.configuration.Exclusions) > 0 {
-		exclude = synchronizer.hasExtension(path, synchronizer.configuration.Exclusions)
+	if len(synchronizer.profile.Exclusions) > 0 {
+		exclude = synchronizer.hasExtension(path, synchronizer.profile.Exclusions)
 	}
 
 	return include && !exclude
@@ -540,14 +540,14 @@ func (synchronizer *Synchronizer) hasExtension(path string, extensions []string)
 }
 
 func (synchronizer *Synchronizer) resetSynchronizerStatus() {
-	newSyncStatus := types.CreateSynchronizerStatus(synchronizer.configuration)
+	newSyncStatus := types.CreateSynchronizerStatus(synchronizer.profile)
 	synchronizer.status = newSyncStatus
 	types.GetServiceStatus().Add(newSyncStatus)
 }
 
 // setNextRunTime calculates the next run time for the service
 func (synchronizer *Synchronizer) setNextRunTime() {
-	expression := cronexpr.MustParse(synchronizer.configuration.ScheduleDef)
+	expression := cronexpr.MustParse(synchronizer.profile.ScheduleDef)
 	synchronizer.nextRunTime = expression.Next(time.Now())
 	logger.Infof("The next synchronization run will be at: %s", synchronizer.nextRunTime.Format("2006-01-02 15:04:05 MST"))
 }
