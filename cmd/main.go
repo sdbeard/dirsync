@@ -17,6 +17,7 @@ import (
 	"fmt"
 	"os"
 	"runtime"
+	"strings"
 	"sync"
 
 	"github.com/sdbeard/dirsync/internal/conf"
@@ -235,15 +236,10 @@ func runInteractiveService(syncService *syncsvc.SynchronizerService, profiles []
 
 			synchronizer := syncService.RetrieveSynchronizer(profile)
 
-			if *remote {
-				files, err := synchronizer.ListRemote()
-				if err != nil {
-					lock.Lock()
-					defer lock.Unlock()
-					errs = append(errs, err)
-					return
-				}
-				printRemoteFiles(files)
+			if err := runListRemote(synchronizer); err != nil {
+				lock.Lock()
+				defer lock.Unlock()
+				errs = append(errs, err)
 				return
 			}
 
@@ -257,6 +253,21 @@ func runInteractiveService(syncService *syncsvc.SynchronizerService, profiles []
 	waitGroup.Wait()
 
 	return errors.Join(errs...)
+}
+
+func runListRemote(synchronizer *types.Synchronizer) error {
+	logger.WithFields(logging.LogEntryContext(logger.Fields{})).Debug()
+
+	if *remote {
+		files, err := synchronizer.ListRemote()
+		if err != nil {
+			return err
+		}
+
+		printRemoteFiles(files)
+	}
+
+	return nil
 }
 
 /*
@@ -295,6 +306,8 @@ func processCommand(systemService service.Service) {
 	}
 }
 
+*/
+
 func initializeCmdLineParameters() {
 	// Set configuration values based on the flags that have been set
 	conf.GetSynchronizerConf().ExecFlags.FileOverwrite = *overwrite
@@ -311,6 +324,7 @@ func initializeCmdLineParameters() {
 	}
 }
 
+/*
 func createStopChannel() chan os.Signal {
 	stopChannel := make(chan os.Signal, 5)
 	signal.Notify(stopChannel, os.Interrupt)

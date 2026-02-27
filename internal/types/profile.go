@@ -5,18 +5,22 @@
 // *********************************************************************************
 package types
 
-import "encoding/json"
+import (
+	"encoding/json"
+
+	"github.com/sdbeard/go-supportlib/common/files"
+)
 
 /***** Profile ********************************************************************/
 
 type Profile struct {
-	TargetConf      any             `json:"targetconf"`
+	Source          files.File      `json:"source"`
+	Target          files.File      `json:"target"`
 	FileCopyOptions FileCopyOptions `json:"filecopyoptions"`
 	Extensions      []string        `json:"ext"`
 	Exclusions      []string        `json:"exclusions"`
 	Name            string          `json:"name"`
 	Description     string          `json:"description"`
-	SourceFolder    string          `json:"source"`
 	ScheduleDef     string          `json:"scheduledef"`
 	TargetLocation  LocationType    `json:"targetlocation"`
 	Recursive       bool            `json:"recursive"`
@@ -29,9 +33,13 @@ type Profile struct {
 func (profile Profile) MarshalJSON() ([]byte, error) {
 	type Alias Profile
 	return json.Marshal(&struct {
+		Source         string `json:"source"`
+		Target         string `json:"target"`
 		TargetLocation string `json:"targetlocation"`
 		Alias
 	}{
+		Source:         profile.Source.Conf(),
+		Target:         profile.Target.Conf(),
 		TargetLocation: profile.TargetLocation.String(),
 		Alias:          (Alias)(profile),
 	})
@@ -41,6 +49,8 @@ func (profile Profile) MarshalJSON() ([]byte, error) {
 func (profile *Profile) UnmarshalJSON(data []byte) error {
 	type Alias Profile
 	aux := &struct {
+		Source         string `json:"source"`
+		Target         string `json:"target"`
 		TargetLocation string `json:"targetlocation"`
 		*Alias
 	}{
@@ -50,6 +60,18 @@ func (profile *Profile) UnmarshalJSON(data []byte) error {
 	if err := json.Unmarshal(data, &aux); err != nil {
 		return err
 	}
+
+	source, err := files.GetFileFromPath(aux.Source)
+	if err != nil {
+		return err
+	}
+	profile.Source = source
+
+	target, err := files.GetFileFromPath(aux.Target)
+	if err != nil {
+		return err
+	}
+	profile.Target = target
 
 	profile.TargetLocation = LocationTypeFromString(aux.TargetLocation)
 
