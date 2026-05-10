@@ -15,6 +15,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"log/slog"
 	"os"
 	"runtime"
 	"strings"
@@ -26,7 +27,6 @@ import (
 	"github.com/sdbeard/go-supportlib/common/logging"
 	"github.com/sdbeard/go-supportlib/common/util"
 	"github.com/sdbeard/service"
-	logger "github.com/sirupsen/logrus"
 )
 
 var (
@@ -46,42 +46,45 @@ var (
 
 func init() {
 	flag.Parse()
-
-	// Load the configuration
-	if err := conf.LoadSynchronizerConf(*config); err != nil {
-		panic(err)
-	}
-	initializeCmdLineParameters()
-
-	if err := logging.InitializeLogging(conf.GetSynchronizerConf().LogConf); err != nil {
-		panic(err)
-	}
 }
 
 func main() {
-
-	logger.Info("Directory Sync v3.0.0")
-	logger.WithFields(logging.LogEntryContext(map[string]interface{}{
-		"App Version": version,
-		"Build":       buildDate,
-		"Environment": env,
-		"GO Version":  runtime.Version(),
-		"PID":         os.Getpid(),
-	})).Infof("Runtime configuration")
-
-	if err := runSyncService(); err != nil {
-		logger.Fatalf("error: %v", err)
+	cfg, err := conf.LoadSynchronizerConf(*config)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "error loading configuration: %w", err)
 		os.Exit(1)
 	}
 
-	logger.Info("dirsynctos3 service has completely shutdown")
+	initializeCmdLineParameters(&cfg)
+
+	logger := logging.NewLogger(cfg.LogConf)
+	if logger == nil {
+		fmt.Fprint(os.Stderr, "could not create the logger")
+		os.Exit(1)
+	}
+
+	logger.Info("Directory Sync v3.0.0")
+	logger.Info("Runtime configuration",
+		"version", version,
+		"build", buildDate,
+		"environment", env,
+		"go version", runtime.Version(),
+		"pid", os.Getpid(),
+	)
+
+	if err := runSyncService(); err != nil {
+		logger.Error("running sync service", "error", err)
+		os.Exit(1)
+	}
+
+	logger.Info("dirsync has completely shutdown")
 	os.Exit(0)
 }
 
 /**********************************************************************************/
 
-func runSyncService() error {
-	logger.WithFields(logging.LogEntryContext(logger.Fields{})).Debug()
+func runSyncService(cfg conf.SynchronizerConf, logger *slog.Logger) error {
+	logger.Debug("running sync service")
 
 	syncService, err := syncsvc.NewSynchronizerService()
 	if err != nil {
@@ -103,8 +106,7 @@ func runSyncService() error {
 
 /**********************************************************************************/
 
-func runInteractive(syncService *syncsvc.SynchronizerService) error {
-	logger.WithFields(logging.LogEntryContext(logger.Fields{})).Debug()
+func runInteractive(syncService *syncsvc.SynchronizerService, cfg conf.SynchronizerConf, logger *slog.Logger) error {
 	logger.Info("starting: interactive mode")
 
 	profiles := []string{*profile}
@@ -222,9 +224,7 @@ func runAsService(syncService *syncsvc.SynchronizerService) error {
 }
 */
 
-func runInteractiveService(syncService *syncsvc.SynchronizerService, profiles []string) error {
-	logger.WithFields(logging.LogEntryContext(logger.Fields{})).Debug()
-
+func runInteractiveService(syncService *syncsvc.SynchronizerService, profiles []string, cfg conf.SynchronizerConf, logger *slog.Logger) error {
 	var errs []error
 	var lock sync.Mutex
 	var waitGroup sync.WaitGroup
@@ -255,9 +255,7 @@ func runInteractiveService(syncService *syncsvc.SynchronizerService, profiles []
 	return errors.Join(errs...)
 }
 
-func runListRemote(synchronizer *types.Synchronizer) error {
-	logger.WithFields(logging.LogEntryContext(logger.Fields{})).Debug()
-
+func runListRemote(synchronizer *types.Synchronizer, cfg conf.SynchronizerConf, logger *slog.Logger) error {
 	if *remote {
 		files, err := synchronizer.ListRemote()
 		if err != nil {
@@ -308,10 +306,10 @@ func processCommand(systemService service.Service) {
 
 */
 
-func initializeCmdLineParameters() {
+func initializeCmdLineParameters(cfg *conf.SynchronizerConf) {
 	// Set configuration values based on the flags that have been set
-	conf.GetSynchronizerConf().ExecFlags.FileOverwrite = *overwrite
-	conf.GetSynchronizerConf().ExecFlags.Simulation = *simulate
+	cfg.ExecFlags.FileOverwrite = *overwrite
+	cfg.ExecFlags.Simulation = *simulate
 
 	// Determine if a command was passed on the command line
 	for index := 1; index < len(os.Args); index++ {

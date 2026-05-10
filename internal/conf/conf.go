@@ -17,22 +17,6 @@ import (
 	"github.com/sdbeard/service"
 )
 
-const confFile = "config.yaml"
-
-var synchronizerConf *SynchronizerConf
-
-/***** FileCopyOptions ************************************************************/
-
-// FileCopyOptions holds all of the fields that optimize the copying of files to S3.
-// These options include throttling values, max number of concurrent transfers, etc.
-//type FileCopyOptions struct {
-//	ThrottleBucketSizeKB int64 `yaml:"throttlebucketsizekb"`
-//	ThrottleSync         bool  `yaml:"throttle"`
-//	MaxConcurrentCopies  int   `yaml:"maxconcurrentcopies"`
-//}
-
-/***********************************************************************************/
-
 /***** ExecutionFlags *************************************************************/
 
 // ExecutionFlags holds all of the parameters the define the exectuion environment
@@ -47,25 +31,6 @@ type ExecutionFlags struct {
 }
 
 /***********************************************************************************/
-
-/***** SynchronizerDirectoryConfig ************************************************/
-
-// SynchronizerDirectoryProfile contains the parameters to completely configure an
-// instance of a Synchronizer
-//type SynchronizerDirectoryProfile struct {
-//	S3Config        s3.Configuration `yaml:"s3config"`
-//	FileCopyOptions FileCopyOptions  `yaml:"filecopyoptions"`
-//	Extensions      []string         `yaml:"ext"`
-//	Exclusions      []string         `yaml:"exclusions"`
-//	Name            string           `yamo:"name"`
-//	Description     string           `yaml:"description"`
-//	SourceFolder    string           `yaml:"source"`
-//	ScheduleDef     string           `yaml:"scheduledef"`
-//	Recursive       bool             `yaml:"recursive"`
-//	RunAtStartup    bool             `yaml:"runatstartup"`
-//}
-
-/**********************************************************************************/
 
 /***** SynchronizerConf ***********************************************************/
 
@@ -83,61 +48,31 @@ type SynchronizerConf struct {
 
 /***********************************************************************************/
 
-// GetConfiguration retrieves the current configuration read from dirsync_cfg.json,
-// and returns a pointer to a DirectorySyncS3ServiceConfiguration struct
-func GetSynchronizerConf() *SynchronizerConf {
-	return synchronizerConf
-}
-
 // LoadConfiguration loads the configuration file from yaml to the configuration
-func LoadSynchronizerConf(file string) error {
+func LoadSynchronizerConf(file string) (SynchronizerConf, error) {
 	// Get the working folder
 	workingDir, _ := os.Getwd()
 	workingFolder, _ := filepath.Abs(workingDir)
 
 	// Create the configuration object and set defaults
-	synchronizerConf = &SynchronizerConf{}
+	synchronizerConf := &SynchronizerConf{}
 	if file != "" {
 		fileBytes, err := util.ReadFile(filepath.Join(workingFolder, file))
 		if err != nil {
-			return err
+			return *synchronizerConf, err
 		}
 
 		// Unmarshal the configuration file
 		if err = json.Unmarshal(fileBytes, synchronizerConf); err != nil {
-			return err
+			return *synchronizerConf, err
 		}
 	}
 
-	/*
-		if !service.Interactive() {
-			exeFolder, err := osext.ExecutableFolder()
-			if err != nil {
-				return (err)
-			}
-			configFile = fmt.Sprintf("%s%s%s", exeFolder, string(os.PathSeparator), confFile)
-			workingFolder = exeFolder
-		} else {
-			workingDir, err := os.Getwd()
-			if err != nil {
-				return err
-			}
-
-			workingFolder, err = filepath.Abs(workingDir)
-			if err != nil {
-				return err
-			}
-			configFile = fmt.Sprintf("%s%s%s", workingFolder,
-				string(os.PathSeparator), confFile)
-		}
-	*/
-
 	// Set the current folder
 	synchronizerConf.WorkingFolder = workingFolder
-	//synchronizerConf.ExecFlags.ExecutionFolder = workingFolder
 	synchronizerConf.ServiceConfiguration.WorkingDirectory = workingFolder
 
-	return nil
+	return *synchronizerConf, nil
 }
 
 /***********************************************************************************/
