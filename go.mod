@@ -9,7 +9,7 @@ require (
 	github.com/justinas/alice v1.2.0
 	github.com/robfig/cron v1.2.0
 	github.com/robfig/cron/v3 v3.0.1
-	github.com/sdbeard/go-supportlib v1.0.1-0.20260220185126-b3f345c5a5f1
+	github.com/sdbeard/go-supportlib v1.6.0
 	github.com/sdbeard/service v1.3.0
 	github.com/sirupsen/logrus v1.9.3
 	github.com/unrolled/render v1.7.0
@@ -43,7 +43,6 @@ require (
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/juju/ratelimit v1.0.2 // indirect
 	github.com/mitchellh/go-homedir v1.1.0 // indirect
-	github.com/natefinch/lumberjack/v3 v3.0.0-alpha // indirect
 	github.com/rs/xid v1.6.0 // indirect
 	github.com/spf13/cast v1.9.2 // indirect
 	go.opentelemetry.io/auto/sdk v1.1.0 // indirect
